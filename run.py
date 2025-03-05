@@ -13,6 +13,8 @@ from tools import (
     ShapeType,
 )
 
+# сделать выбор цвета фона
+
 
 @dataclass
 class WCConfig:

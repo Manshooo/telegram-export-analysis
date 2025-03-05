@@ -8,6 +8,3 @@ env
 # python
 __pycache__
 *.pyc
-
-# git
-.git
