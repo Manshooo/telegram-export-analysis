@@ -20,7 +20,11 @@ jobs:
       - name: Install dependencies
         run: pip install python-semantic-release
 
-      - name: Semantic Release
+      - name: Run Semantic Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: semantic-release publish
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          semantic-release publish \
+            -v DEBUG \
+            -D commit_author="github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" \
+            -D github_repository=$GITHUB_REPOSITORY

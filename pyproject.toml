@@ -1,5 +1,22 @@
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.0.0"
+tag_format = "v$version"
+version_files = [
+	{ path = "src/__version__.py", pattern = "__version__ = \"{}\"" },
+	{ path = "pyproject.toml", pattern = "version = \"{}\"" },
+]
+
 [tool.semantic_release]
-changelog_file = "CHANGELOG.md"
+branch = "main"
+version_variable = [
+	"src/setup.py:__version__",
+	"pyproject.toml:tool.poetry.version",
+]
+remote = { name = "origin", url = "https://github.com/Manshooo/telegram-wordcloud.git" }
+version_pattern = "src/__version__.py:__version__ = \"{}\""
+upload_to_repository = false
 commit_version_number = true
-upload_to_pypi = false
-version_source = "tag"
+[tool.poetry]
+name = "telegram-wordcloud"
+version = "1.0.0"
