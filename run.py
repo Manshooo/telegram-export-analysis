@@ -3,95 +3,32 @@ import argparse
 import os
 import sys
 from dataclasses import dataclass
-from typing import Optional, Dict
-import numpy as np
+from typing import Optional
 import imageio
 from wordcloud import WordCloud
 from tools import (
+    ColorConfig,
+    ContrastColorFunc,
     Conversation,
+    calculate_frequencies,
+    create_mask,
     get_chat_list,
     find_chat_by_name,
-    ShapeType,
 )
-
-# сделать выбор цвета фона
-# исключить неинтересные слова (вроде, я, ты, мне и т.д.)
 
 
 @dataclass
 class WCConfig:
     """Word Cloud configuration"""
     max_font_size: int = 250
-    width: int = 1920
-    height: int = 1080
+    width: int = 500
+    height: int = 500
     max_words: int = 1000
     background_color: str = 'black'
     mode: str = 'RGB'
     font_path: Optional[str] = None
     prefer_horizontal: float = 0.9
     relative_scaling: float = 0.5
-
-
-def create_mask(shape: ShapeType, width: int, height: int) -> Optional[np.ndarray]:
-    """Create mask array for word cloud"""
-    if shape == "circle":
-        y, x = np.ogrid[:height, :width]
-        center_x, center_y = width//2, height//2
-        radius = min(width, height) // 2 - 10
-        mask = (x - center_x)**2 + (y - center_y)**2 > radius**2
-        return 255 * mask.astype(int)
-    return None
-
-
-def calculate_frequencies(selected_conv: Conversation,
-                          other_chats: list,
-                          excluded_words: set[str]) -> Dict[str, float]:
-    """Calculate word frequencies with comparison logic, excluding specific words"""
-    total_words = 0
-    global_counts = {}
-
-    # Process other chats with filtering
-    for chat in other_chats:
-        conv = Conversation(chat)
-        word_counts = conv.count_words()
-
-        # Filter excluded words
-        filtered_counts = {
-            word: count
-            for word, count in word_counts.items()
-            if word not in excluded_words
-        }
-
-        total_words += sum(filtered_counts.values())
-        for word, count in filtered_counts.items():
-            global_counts[word] = global_counts.get(word, 0) + count
-
-    # Calculate probabilities
-    global_probs = {}
-    if total_words:
-        global_probs = {word: count / total_words for word,
-                        count in global_counts.items()}
-
-    # Process selected chat with filtering
-    selected_counts_raw = selected_conv.count_words()
-    selected_counts = {
-        word: count
-        for word, count in selected_counts_raw.items()
-        if word not in excluded_words
-    }
-    # Prevent division by zero
-    selected_total = sum(selected_counts.values()) or 1
-
-    if not other_chats:
-        return {word: count / selected_total for word, count in selected_counts.items()}
-
-    # Calculate frequency ratios
-    all_words = set(selected_counts) | set(global_probs)
-    return {
-        word: (selected_counts.get(word, 0) / selected_total) /
-        (global_probs.get(word, 1e-10))
-        for word in all_words
-    }
 
 
 def parse_args() -> argparse.Namespace:
@@ -102,6 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('filename', help='Path to JSON export file')
     parser.add_argument('chat_name', nargs='?', default=None,
                         help='Name of chat to analyze (optional for single chat files)')
+    parser.add_argument('--config', type=str, default='.wc',
+                        help='Path to color config file')
 
     shape_group = parser.add_argument_group('Shape options')
     shape_group.add_argument('-s', '--shape', choices=['circle', 'rect'],
@@ -114,12 +53,24 @@ def parse_args() -> argparse.Namespace:
 
     style_group = parser.add_argument_group('Style options')
     style_group.add_argument('--bg-color', type=str, default='black',
+                             metavar='COLOR',
                              help='Background color (name or hex code)')
-    style_group.add_argument('--exclude', type=lambda s: set(s.lower().split(',')),
-                             default=set(['а', 'в', 'н', 'и', 'э', 'я',
-                                          'вы', 'не', 'ну', 'мы', 'ты']),
-                             metavar='WORDS',
-                             help='Comma-separated words to exclude (case-insensitive)')
+    style_group.add_argument('--monochrome', action='store_true',
+                             help='Use black/white text instead of colored')
+
+    output_group = parser.add_argument_group('Output options')
+    output_group.add_argument('-o', '--output', type=str,
+                              metavar='OUTPUT',
+                              help='Custom output file path')
+    output_group.add_argument('--no-overwrite', action='store_false',
+                              dest='overwrite', default=True,
+                              help='Disable file overwriting')
+    output_group.add_argument('--exclude', type=lambda s: set(s.lower().split(',')),
+                              default=set(['а', 'в', 'н', 'и', 'э', 'я',
+                                           'вы', 'не', 'ну', 'мы', 'ты',
+                                           ]),
+                              metavar='WORDS',
+                              help='Comma-separated words to exclude (case-insensitive)')
 
     args = parser.parse_args()
 
@@ -135,6 +86,8 @@ def parse_args() -> argparse.Namespace:
 def main():
     """Main process"""
     args = parse_args()
+
+    color_config = ColorConfig(args.config)
 
     # Определение размера изображения
     if args.size:
@@ -179,13 +132,25 @@ def main():
     )
     mask = create_mask(args.shape or 'rect', width, height)
 
+    # Автоматический подбор цвета текста
+    if args.monochrome:
+        color_func = ContrastColorFunc(args.bg_color, color_config)
+
+        def mono_func(*_args, **_kwargs):
+            return "#000000" if color_func.bg_luminance > 0.5 else "#ffffff"
+        color_func.__call__ = mono_func
+    else:
+        color_func = ContrastColorFunc(args.bg_color, color_config)
+
+    # Генерация изображения
     wc = WordCloud(
         **vars(config),
-        mask=mask
+        mask=mask,
+        color_func=color_func
     ).generate_from_frequencies(frequencies)
 
     # Сохранение результата
-    output_file = f"{selected_chat['name']}-diff.png"
+    output_file = args.output if args.output else f"{selected_chat['name']}-wc.png"
     output_path = os.path.abspath(output_file)
     imageio.imwrite(output_path, wc)
     print(f"Word cloud saved to: {output_path}")

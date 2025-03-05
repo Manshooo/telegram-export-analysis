@@ -4,7 +4,11 @@
 
 # env
 env
+.env
 
 # python
 __pycache__
 *.pyc
+
+# pallete
+.wc
