@@ -128,6 +128,21 @@ def calculate_frequencies(selected_conv: Conversation,
     }
 
 
+def generate_unique_filename(path: str) -> str:
+    """Generates unique filename with suffixes (1), (2) and etc."""
+    counter = 1
+    original_path = Path(path)
+    stem = original_path.stem
+    suffix = original_path.suffix
+
+    while original_path.exists():
+        new_name = f"{stem}({counter}){suffix}"
+        original_path = original_path.with_name(new_name)
+        counter += 1
+
+    return str(original_path)
+
+
 class ColorConfig:
     """Color config from file or uses default"""
     DEFAULT_CONFIG = {

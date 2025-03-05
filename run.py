@@ -12,6 +12,7 @@ from tools import (
     Conversation,
     calculate_frequencies,
     create_mask,
+    generate_unique_filename,
     get_chat_list,
     find_chat_by_name,
 )
@@ -68,6 +69,7 @@ def parse_args() -> argparse.Namespace:
     output_group.add_argument('--exclude', type=lambda s: set(s.lower().split(',')),
                               default=set(['а', 'в', 'н', 'и', 'э', 'я',
                                            'вы', 'не', 'ну', 'мы', 'ты',
+                                           'что', 'это',
                                            ]),
                               metavar='WORDS',
                               help='Comma-separated words to exclude (case-insensitive)')
@@ -152,6 +154,10 @@ def main():
     # Сохранение результата
     output_file = args.output if args.output else f"{selected_chat['name']}-wc.png"
     output_path = os.path.abspath(output_file)
+
+    if not args.overwrite:
+        output_path = generate_unique_filename(output_path)
+
     imageio.imwrite(output_path, wc)
     print(f"Word cloud saved to: {output_path}")
 
