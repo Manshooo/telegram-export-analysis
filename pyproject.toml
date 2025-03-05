@@ -1,0 +1,5 @@
+[tool.semantic_release]
+changelog_file = "CHANGELOG.md"
+commit_version_number = true
+upload_to_pypi = false
+version_source = "tag"

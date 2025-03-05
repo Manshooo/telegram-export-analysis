@@ -1,6 +1,8 @@
-# output
+# input
+result.json
+
+#output
 *.png
-*.json
 
 # env
 env
