@@ -1,63 +1,50 @@
-import operator, json
-telegram_json_export = "result.json"
 
+import json
+import re
+from typing import Literal, List, Optional
+from collections import Counter
 
-def get_chat_list():
-    "lists all the chats (with persons) from a telegram json data export"
-    with open(telegram_json_export) as json_data:
-        data = json.load(json_data)
-    chats = []
-    for chat in data['chats']['list']:
-        if chat["type"] == "personal_chat":
-            chats.append(chat)
-    return chats
-
-def find_chat_by_name(name):
-    for chat in get_chat_list():
-        if chat["name"] == name:
-            return chat
-    print("chat not found")
-    return False
-
-def default_filter(message):
-    return True
-
-def count_words(list):
-    "returns a dict with words as keys and the number of apperances as values"
-    count = {}
-    for word in list:
-        if not word in count:
-            count[word] = 1
-        else:
-            count[word] += 1
-    return count
 
 class Conversation:
-    "Describes a conversation with one person"
-    def __init__(self, chat):
+    PUNCTUATION = r""",!\.…/"'\(\)\*\?=–;:^—~«»"""
+    CLEAN_REGEX = re.compile(f"[{PUNCTUATION}]")
+
+    def __init__(self, chat: dict):
         self.messages = chat['messages']
         self.name = chat['name']
+        self._word_filter = lambda msg: True
 
-    def word_list(self, filter = default_filter):
-        "returns a list of all words from all messages (not a set)"
-        list = []
-        for message in self.messages:
-            if filter(message):
-                if type(message['text']) == str:
-                    text = message['text'].lower()
-                    for char in """,!.…/"'()*?=-–;:^""":
-                        text = text.replace(char, " ")
-                    blocks = text.split(' ') # blocks might contain multiple words, sperated by \n
-                    for block in blocks:
-                        for word in block.split('\n'):
-                            if not word in ["", " "]:
-                                list.append(word)
-        return list
+    def get_word_list(self) -> List[str]:
+        words = []
+        for msg in self.messages:
+            if not self._word_filter(msg):
+                continue
 
-    def string_of_all_messages(self):
-        "returns a long string of all messages with spaces"
-        return " ".join(self.word_list())
+            text = msg.get('text', '')
+            if not isinstance(text, str):
+                continue
 
-    def count_words(self):
-        "returns a dict with words as keys and the number of apperances as values"
-        return count_words(self.word_list())
+            cleaned = self.CLEAN_REGEX.sub(' ', text.lower())
+            words.extend(filter(None, re.split(r'\s+', cleaned.strip())))
+        return words
+
+    def count_words(self) -> Counter:
+        return Counter(self.get_word_list())
+
+
+ShapeType = Literal["circle", "rect"]
+
+
+def get_chat_list(filename: str) -> List[dict]:
+    """Load chats from JSON file"""
+    with open(filename, encoding='utf-8') as f:
+        data = json.load(f)
+
+    if 'chats' in data:
+        return data['chats']['list']
+    return [data]
+
+
+def find_chat_by_name(name: str, chats: list) -> Optional[dict]:
+    """Find chat by name (case sensitive)"""
+    return next((c for c in chats if c.get('name') == name), None)

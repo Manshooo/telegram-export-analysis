@@ -1,3 +1,13 @@
-*.pyc
+# output
 *.png
 *.json
+
+# env
+env
+
+# python
+__pycache__
+*.pyc
+
+# git
+.git
