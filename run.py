@@ -1,5 +1,6 @@
 
 import argparse
+import os
 import sys
 from dataclasses import dataclass
 from typing import Optional, Dict
@@ -14,6 +15,7 @@ from tools import (
 )
 
 # сделать выбор цвета фона
+# исключить неинтересные слова (вроде, я, ты, мне и т.д.)
 
 
 @dataclass
@@ -37,38 +39,56 @@ def create_mask(shape: ShapeType, width: int, height: int) -> Optional[np.ndarra
         center_x, center_y = width//2, height//2
         radius = min(width, height) // 2 - 10
         mask = (x - center_x)**2 + (y - center_y)**2 > radius**2
-        return (255 * mask.astype(int))
+        return 255 * mask.astype(int)
     return None
 
 
-def calculate_frequencies(selected_conv: Conversation, other_chats: list) -> Dict[str, float]:
-    """Calculate word frequencies with comparison logic"""
+def calculate_frequencies(selected_conv: Conversation,
+                          other_chats: list,
+                          excluded_words: set[str]) -> Dict[str, float]:
+    """Calculate word frequencies with comparison logic, excluding specific words"""
     total_words = 0
-    global_counts = dict()
+    global_counts = {}
 
-    # Process other chats
+    # Process other chats with filtering
     for chat in other_chats:
         conv = Conversation(chat)
-        words = conv.get_word_list()
-        total_words += len(words)
-        for word, count in conv.count_words().items():
+        word_counts = conv.count_words()
+
+        # Filter excluded words
+        filtered_counts = {
+            word: count
+            for word, count in word_counts.items()
+            if word not in excluded_words
+        }
+
+        total_words += sum(filtered_counts.values())
+        for word, count in filtered_counts.items():
             global_counts[word] = global_counts.get(word, 0) + count
 
     # Calculate probabilities
-    global_probs = {word: count/total_words for word,
-                    count in global_counts.items()} if total_words else {}
+    global_probs = {}
+    if total_words:
+        global_probs = {word: count / total_words for word,
+                        count in global_counts.items()}
 
-    # Process selected chat
-    selected_counts = selected_conv.count_words()
-    selected_total = len(selected_conv.get_word_list())
+    # Process selected chat with filtering
+    selected_counts_raw = selected_conv.count_words()
+    selected_counts = {
+        word: count
+        for word, count in selected_counts_raw.items()
+        if word not in excluded_words
+    }
+    # Prevent division by zero
+    selected_total = sum(selected_counts.values()) or 1
 
     if not other_chats:
-        return {word: count/selected_total for word, count in selected_counts.items()}
+        return {word: count / selected_total for word, count in selected_counts.items()}
 
     # Calculate frequency ratios
     all_words = set(selected_counts) | set(global_probs)
     return {
-        word: (selected_counts.get(word, 0)/selected_total) /
+        word: (selected_counts.get(word, 0) / selected_total) /
         (global_probs.get(word, 1e-10))
         for word in all_words
     }
@@ -87,13 +107,23 @@ def parse_args() -> argparse.Namespace:
     shape_group.add_argument('-s', '--shape', choices=['circle', 'rect'],
                              help='Cloud shape: circle or rectangle')
     shape_group.add_argument('--size', nargs=2, type=int, metavar=('WIDTH', 'HEIGHT'),
-                             help='Image dimensions in pixels')
+                             help='Image dimensions in pixels',
+                             default=[500, 500])
     shape_group.add_argument('--width', type=int, help='Image width')
     shape_group.add_argument('--height', type=int, help='Image height')
 
+    style_group = parser.add_argument_group('Style options')
+    style_group.add_argument('--bg-color', type=str, default='black',
+                             help='Background color (name or hex code)')
+    style_group.add_argument('--exclude', type=lambda s: set(s.lower().split(',')),
+                             default=set(['а', 'в', 'н', 'и', 'э', 'я',
+                                          'вы', 'не', 'ну', 'мы', 'ты']),
+                             metavar='WORDS',
+                             help='Comma-separated words to exclude (case-insensitive)')
+
     args = parser.parse_args()
 
-    # Validate size arguments
+    # Validation
     if (args.width or args.height) and args.size:
         parser.error("Use either --size or --width/--height")
     if (args.width and not args.height) or (args.height and not args.width):
@@ -106,7 +136,7 @@ def main():
     """Main process"""
     args = parse_args()
 
-    # Determine image size
+    # Определение размера изображения
     if args.size:
         width, height = args.size
     elif args.width and args.height:
@@ -115,12 +145,12 @@ def main():
         default_config = WCConfig()
         width, height = default_config.width, default_config.height
 
-    # Load and validate chats
+    # Загрузка и валидация чатов
     chats = get_chat_list(args.filename)
     if not chats:
         sys.exit("No chats found in file")
 
-    # Select target chat
+    # Выбор целевого чата
     if args.chat_name:
         selected_chat = find_chat_by_name(args.chat_name, chats)
         if not selected_chat:
@@ -130,15 +160,23 @@ def main():
             sys.exit("Multiple chats found - please specify chat name")
         selected_chat = chats[0]
 
-    # Prepare data
+    # Подготовка данных
     other_chats = [chat for chat in chats if chat != selected_chat]
     selected_conv = Conversation(selected_chat)
 
-    # Generate word frequencies
-    frequencies = calculate_frequencies(selected_conv, other_chats)
+    # Генерация частот слов
+    frequencies = calculate_frequencies(
+        selected_conv,
+        other_chats,
+        excluded_words=args.exclude
+    )
 
-    # Configure word cloud
-    config = WCConfig(width=width, height=height)
+    # Настройка облака слов
+    config = WCConfig(
+        width=width,
+        height=height,
+        background_color=args.bg_color
+    )
     mask = create_mask(args.shape or 'rect', width, height)
 
     wc = WordCloud(
@@ -146,10 +184,11 @@ def main():
         mask=mask
     ).generate_from_frequencies(frequencies)
 
-    # Save result
+    # Сохранение результата
     output_file = f"{selected_chat['name']}-diff.png"
-    imageio.imwrite(output_file, wc)
-    print(f"Word cloud saved to {output_file}")
+    output_path = os.path.abspath(output_file)
+    imageio.imwrite(output_path, wc)
+    print(f"Word cloud saved to: {output_path}")
 
 
 if __name__ == "__main__":
