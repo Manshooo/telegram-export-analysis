@@ -12,7 +12,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.x"
@@ -20,11 +20,17 @@ jobs:
       - name: Install dependencies
         run: pip install python-semantic-release
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+
       - name: Run Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           semantic-release publish \
-            -v DEBUG \
-            -D commit_author="github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" \
-            -D github_repository=$GITHUB_REPOSITORY
+            --verbosity DEBUG \
+            -D commit_author="actions-user <actions@github.com>" \
+            -D github_repository=${{ github.repository }}
