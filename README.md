@@ -99,4 +99,4 @@ graph TD
 ---
 
 
-> 🔄 Форк проекта [paulin1C/telegram-export-analysis](https://github.com/paulin1C/telegram-export-analysis) 
+> 🔄 Изначально форк проекта [paulin1C/telegram-export-analysis](https://github.com/paulin1C/telegram-export-analysis), но теперь самостоятельный проект!
