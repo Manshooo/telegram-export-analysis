@@ -62,12 +62,12 @@ python run.py result.json "Рабочий чат"
 python run.py result.json --shape circle --size 500 500
 ```
 
-3. Круглое облако 500x500 пикселей:
+3. Облако без слов "я, ты, мы":
 ```bash
 python run.py result.json --bg-color white --exclude "я,ты,мы"
 ```
 
-4. Круглое облако 500x500 пикселей:
+4. Облако без слов "это, как, так" с фоновым цветом ![#FFE4E1](https://placehold.co/15x15/FFE4E1/FFE4E1.png) `#FFE4E1`:
 ```bash
 python run.py result.json --bg-color "#FFE4E1" --exclude "это,как,так"
 ```
