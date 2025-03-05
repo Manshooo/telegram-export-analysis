@@ -67,9 +67,12 @@ def parse_args() -> argparse.Namespace:
                               dest='overwrite', default=True,
                               help='Disable file overwriting')
     output_group.add_argument('--exclude', type=lambda s: set(s.lower().split(',')),
-                              default=set(['а', 'в', 'н', 'и', 'э', 'я',
-                                           'вы', 'не', 'ну', 'мы', 'ты',
-                                           'что', 'это',
+                              default=set(['а', 'в', 'н', 'и', 'э', 'я', 'у',
+                                           'вы', 'не', 'ну', 'мы', 'ты', 'он',
+                                           'по',
+                                           'что', 'это', 'нет', 'так', 'она',
+                                           'вот', 'мне', 'всё', 'ещё', 'или',
+                                           'тут', 'там',
                                            ]),
                               metavar='WORDS',
                               help='Comma-separated words to exclude (case-insensitive)')
